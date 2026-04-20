@@ -1,0 +1,1997 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Smart HVAC — IoT Control System</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #0d1117;
+    --bg2: #161b22;
+    --bg3: #1c2333;
+    --bg4: #21262d;
+    --border: rgba(48,54,61,0.9);
+    --border2: rgba(48,54,61,0.5);
+    --text: #e6edf3;
+    --text2: #8b949e;
+    --text3: #6e7681;
+    --blue: #388bfd;
+    --blue-dim: rgba(56,139,253,0.12);
+    --blue-glow: rgba(56,139,253,0.25);
+    --green: #3fb950;
+    --green-dim: rgba(63,185,80,0.12);
+    --amber: #d29922;
+    --amber-dim: rgba(210,153,34,0.12);
+    --red: #f85149;
+    --red-dim: rgba(248,81,73,0.12);
+    --teal: #39d353;
+    --purple: #bc8cff;
+    --purple-dim: rgba(188,140,255,0.12);
+    --radius: 10px;
+    --radius-sm: 6px;
+    --font: 'DM Sans', sans-serif;
+    --mono: 'JetBrains Mono', monospace;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: var(--font);
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    font-size: 14px;
+    line-height: 1.6;
+  }
+
+  /* ─── LAYOUT ─────────────────────────────────── */
+  .app { display: flex; min-height: 100vh; }
+
+  /* ─── SIDEBAR ────────────────────────────────── */
+  .sidebar {
+    width: 240px;
+    background: var(--bg2);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    position: fixed;
+    height: 100vh;
+    z-index: 100;
+  }
+
+  .sidebar-header {
+    padding: 20px 16px 16px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 6px;
+  }
+
+  .logo-icon {
+    width: 32px;
+    height: 32px;
+    background: linear-gradient(135deg, #388bfd, #79c0ff);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .logo-icon svg { width: 18px; height: 18px; fill: white; }
+  .logo-text { font-size: 15px; font-weight: 600; color: var(--text); }
+  .logo-sub { font-size: 11px; color: var(--text3); }
+
+  .status-bar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 10px;
+    padding: 6px 8px;
+    background: var(--green-dim);
+    border: 1px solid rgba(63,185,80,0.3);
+    border-radius: var(--radius-sm);
+    font-size: 11px;
+    color: var(--green);
+    font-weight: 500;
+  }
+
+  .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); animation: blink 2s infinite; flex-shrink: 0; }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+  .nav { flex: 1; padding: 10px 8px; overflow-y: auto; }
+
+  .nav-section-label {
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--text3);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    padding: 12px 8px 6px;
+  }
+
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    color: var(--text2);
+    font-size: 13px;
+    font-weight: 400;
+    transition: all 0.15s;
+    border: none;
+    background: transparent;
+    width: 100%;
+    text-align: left;
+  }
+
+  .nav-item:hover { background: var(--bg3); color: var(--text); }
+  .nav-item.active { background: var(--blue-dim); color: var(--blue); font-weight: 500; }
+  .nav-item svg { width: 16px; height: 16px; flex-shrink: 0; }
+
+  .nav-badge {
+    margin-left: auto;
+    font-size: 10px;
+    padding: 1px 6px;
+    border-radius: 999px;
+    font-weight: 600;
+  }
+
+  .badge-green { background: var(--green-dim); color: var(--green); }
+  .badge-blue { background: var(--blue-dim); color: var(--blue); }
+  .badge-amber { background: var(--amber-dim); color: var(--amber); }
+  .badge-red { background: var(--red-dim); color: var(--red); }
+
+  .sidebar-footer {
+    padding: 12px 16px;
+    border-top: 1px solid var(--border);
+    font-size: 11px;
+    color: var(--text3);
+  }
+
+  .device-info { display: flex; flex-direction: column; gap: 3px; }
+  .device-info span { display: flex; justify-content: space-between; }
+  .device-info b { color: var(--text2); font-weight: 400; }
+
+  /* ─── MAIN ───────────────────────────────────── */
+  .main {
+    margin-left: 240px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+  }
+
+  .topbar {
+    height: 56px;
+    background: var(--bg2);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 24px;
+    gap: 12px;
+    position: sticky;
+    top: 0;
+    z-index: 50;
+  }
+
+  .topbar-title { font-size: 15px; font-weight: 500; flex: 1; }
+
+  .chip {
+    font-size: 11px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    border: 1px solid;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .chip-green { border-color: rgba(63,185,80,0.4); color: var(--green); background: var(--green-dim); }
+  .chip-blue  { border-color: rgba(56,139,253,0.4); color: var(--blue); background: var(--blue-dim); }
+  .chip-amber { border-color: rgba(210,153,34,0.4); color: var(--amber); background: var(--amber-dim); }
+
+  .content { padding: 24px; overflow-y: auto; }
+
+  /* ─── SECTIONS ───────────────────────────────── */
+  .section { display: none; animation: fadeIn 0.2s ease; }
+  .section.active { display: block; }
+  @keyframes fadeIn { from{opacity:0;transform:translateY(4px)} to{opacity:1;transform:translateY(0)} }
+
+  /* ─── CARDS ──────────────────────────────────── */
+  .card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 18px 20px;
+  }
+
+  .card-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .card-title svg { width: 14px; height: 14px; color: var(--text3); }
+
+  .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
+  .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 16px; }
+  .grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; margin-bottom: 16px; }
+  .grid-1 { margin-bottom: 16px; }
+
+  @media(max-width:900px) {
+    .sidebar { width: 200px; }
+    .main { margin-left: 200px; }
+    .grid-4 { grid-template-columns: repeat(2,1fr); }
+    .grid-3 { grid-template-columns: repeat(2,1fr); }
+    .grid-2 { grid-template-columns: 1fr; }
+  }
+
+  /* ─── METRIC CARDS ───────────────────────────── */
+  .metric {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .metric::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+  }
+
+  .metric.blue::before { background: var(--blue); }
+  .metric.green::before { background: var(--green); }
+  .metric.amber::before { background: var(--amber); }
+  .metric.purple::before { background: var(--purple); }
+
+  .metric-label { font-size: 11px; color: var(--text3); font-weight: 500; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 8px; }
+  .metric-main { display: flex; align-items: baseline; gap: 4px; }
+  .metric-val { font-size: 32px; font-weight: 300; color: var(--text); font-family: var(--mono); }
+  .metric-unit { font-size: 14px; color: var(--text3); }
+  .metric-change { font-size: 11px; margin-top: 4px; }
+  .metric-icon {
+    position: absolute;
+    right: 14px; top: 14px;
+    width: 32px; height: 32px;
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .metric-icon svg { width: 16px; height: 16px; }
+
+  /* ─── CONTROLS ───────────────────────────────── */
+  .control-group { margin-bottom: 20px; }
+  .control-label {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 8px;
+    font-size: 13px;
+  }
+  .control-label span:first-child { color: var(--text2); }
+  .control-label span:last-child { color: var(--text); font-weight: 600; font-family: var(--mono); }
+
+  input[type=range] {
+    width: 100%;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--bg4);
+    outline: none;
+    border: none;
+    cursor: pointer;
+    -webkit-appearance: none;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px; height: 16px;
+    border-radius: 50%;
+    background: var(--blue);
+    cursor: pointer;
+    border: 2px solid var(--bg);
+    box-shadow: 0 0 0 2px var(--blue-glow);
+  }
+  input[type=range]:focus { outline: none; }
+
+  input[type=text], input[type=number], textarea, select {
+    width: 100%;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 12px;
+    padding: 8px 12px;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  input[type=text]:focus, input[type=number]:focus, textarea:focus, select:focus {
+    border-color: var(--blue);
+    box-shadow: 0 0 0 3px var(--blue-glow);
+  }
+  select { cursor: pointer; }
+
+  /* ─── TOGGLE ─────────────────────────────────── */
+  .toggle-group { display: flex; flex-direction: column; gap: 1px; }
+  .toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border2);
+  }
+  .toggle-row:last-child { border-bottom: none; }
+  .toggle-info p { font-size: 13px; font-weight: 500; color: var(--text); }
+  .toggle-info small { font-size: 11px; color: var(--text3); }
+
+  .toggle-sw {
+    width: 40px; height: 22px;
+    border-radius: 11px;
+    border: none;
+    cursor: pointer;
+    position: relative;
+    transition: background 0.2s;
+    flex-shrink: 0;
+    outline: none;
+  }
+  .toggle-sw.on { background: var(--green); }
+  .toggle-sw.off { background: var(--bg4); border: 1px solid var(--border); }
+  .toggle-sw::after {
+    content: '';
+    position: absolute;
+    width: 16px; height: 16px;
+    background: white;
+    border-radius: 50%;
+    top: 3px;
+    transition: left 0.2s;
+  }
+  .toggle-sw.on::after { left: 21px; }
+  .toggle-sw.off::after { left: 3px; }
+
+  /* ─── BUTTONS ────────────────────────────────── */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 16px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    background: var(--bg3);
+    color: var(--text);
+    font-family: var(--font);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-decoration: none;
+  }
+  .btn:hover { background: var(--bg4); border-color: rgba(139,148,158,0.4); }
+  .btn-primary { background: var(--blue); color: white; border-color: var(--blue); }
+  .btn-primary:hover { background: #4d9fff; border-color: #4d9fff; }
+  .btn-danger { background: var(--red-dim); color: var(--red); border-color: rgba(248,81,73,0.3); }
+  .btn-success { background: var(--green-dim); color: var(--green); border-color: rgba(63,185,80,0.3); }
+  .btn svg { width: 14px; height: 14px; }
+
+  /* ─── CHART ──────────────────────────────────── */
+  .chart-wrap { position: relative; height: 200px; }
+
+  /* ─── LOG ────────────────────────────────────── */
+  .log-wrap {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 10px;
+    max-height: 220px;
+    overflow-y: auto;
+    font-family: var(--mono);
+    font-size: 11px;
+  }
+
+  .log-entry { display: flex; gap: 10px; padding: 4px 0; border-bottom: 1px solid var(--border2); align-items: flex-start; }
+  .log-entry:last-child { border-bottom: none; }
+  .log-time { color: var(--text3); flex-shrink: 0; }
+  .log-tag { flex-shrink: 0; padding: 1px 6px; border-radius: 4px; font-size: 10px; font-weight: 600; }
+  .lt-local  { background: var(--amber-dim); color: var(--amber); }
+  .lt-cloud  { background: var(--blue-dim); color: var(--blue); }
+  .lt-alert  { background: var(--red-dim); color: var(--red); }
+  .lt-ok     { background: var(--green-dim); color: var(--green); }
+  .log-msg { color: var(--text2); flex: 1; }
+
+  /* ─── PROGRESS BAR ───────────────────────────── */
+  .prog-wrap { margin-bottom: 14px; }
+  .prog-label { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 5px; }
+  .prog-label span { color: var(--text2); }
+  .prog-label b { color: var(--text); font-weight: 600; font-family: var(--mono); }
+  .prog-bar { height: 6px; background: var(--bg4); border-radius: 3px; overflow: hidden; }
+  .prog-fill { height: 100%; border-radius: 3px; transition: width 1.5s ease; }
+
+  /* ─── DEVICE CARDS ───────────────────────────── */
+  .device-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+  .device-item {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px;
+    position: relative;
+  }
+  .device-item.active-device { border-color: rgba(63,185,80,0.4); }
+  .device-item.inactive-device { border-color: var(--border); opacity: 0.7; }
+  .device-name { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 2px; }
+  .device-role { font-size: 11px; color: var(--text3); margin-bottom: 10px; }
+  .device-detail { font-size: 11px; color: var(--text2); line-height: 1.8; font-family: var(--mono); }
+  .device-status-dot {
+    position: absolute;
+    top: 12px; right: 12px;
+    width: 8px; height: 8px;
+    border-radius: 50%;
+  }
+  .dsd-on { background: var(--green); box-shadow: 0 0 6px var(--green); }
+  .dsd-off { background: var(--text3); }
+
+  /* ─── CODE BLOCKS ────────────────────────────── */
+  .code-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--bg4);
+    border: 1px solid var(--border);
+    border-bottom: none;
+    border-radius: var(--radius) var(--radius) 0 0;
+    padding: 8px 14px;
+    font-size: 11px;
+    color: var(--text3);
+    font-family: var(--mono);
+  }
+  .code-lang {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 600;
+    color: var(--blue);
+  }
+  .code-copy {
+    cursor: pointer;
+    padding: 3px 8px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    background: var(--bg3);
+    color: var(--text3);
+    font-family: var(--mono);
+    font-size: 10px;
+    transition: all 0.15s;
+  }
+  .code-copy:hover { color: var(--text); border-color: rgba(139,148,158,0.5); }
+
+  pre {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 0 0 var(--radius) var(--radius);
+    padding: 14px 16px;
+    overflow-x: auto;
+    font-family: var(--mono);
+    font-size: 12px;
+    line-height: 1.75;
+    color: var(--text2);
+    margin-bottom: 20px;
+    tab-size: 2;
+  }
+
+  .kw  { color: #ff7b72; }
+  .fn  { color: #d2a8ff; }
+  .str { color: #a5d6ff; }
+  .num { color: #f2cc60; }
+  .cm  { color: #8b949e; font-style: italic; }
+  .type { color: #79c0ff; }
+  .var { color: #e6edf3; }
+
+  /* ─── ARCHITECTURE ───────────────────────────── */
+  .arch-layer {
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--bg3);
+    padding: 14px 16px;
+    margin-bottom: 8px;
+    position: relative;
+  }
+  .arch-layer-label {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 8px;
+  }
+  .arch-layer-items { display: flex; flex-wrap: wrap; gap: 6px; }
+  .arch-chip {
+    background: var(--bg4);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 4px 10px;
+    font-size: 12px;
+    color: var(--text2);
+  }
+  .arch-arrow { text-align: center; color: var(--text3); font-size: 18px; margin: 2px 0; }
+
+  /* ─── STEPS ──────────────────────────────────── */
+  .step-list { display: flex; flex-direction: column; gap: 14px; }
+  .step { display: flex; gap: 12px; align-items: flex-start; }
+  .step-num {
+    width: 24px; height: 24px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 700;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+  .step-num.blue { background: var(--blue-dim); color: var(--blue); }
+  .step-num.green { background: var(--green-dim); color: var(--green); }
+  .step-num.amber { background: var(--amber-dim); color: var(--amber); }
+  .step-body p { font-size: 13px; font-weight: 500; color: var(--text); }
+  .step-body small { font-size: 11px; color: var(--text3); display: block; margin-top: 2px; font-family: var(--mono); }
+
+  /* ─── ALERT ──────────────────────────────────── */
+  .alert {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 12px 14px;
+    border-radius: var(--radius-sm);
+    border: 1px solid;
+    margin-bottom: 14px;
+    font-size: 13px;
+  }
+  .alert svg { width: 16px; height: 16px; flex-shrink: 0; margin-top: 1px; }
+  .alert-info { background: var(--blue-dim); border-color: rgba(56,139,253,0.3); color: #79c0ff; }
+  .alert-warn { background: var(--amber-dim); border-color: rgba(210,153,34,0.3); color: var(--amber); }
+  .alert-success { background: var(--green-dim); border-color: rgba(63,185,80,0.3); color: var(--green); }
+
+  /* ─── MQTT CONSOLE ───────────────────────────── */
+  .mqtt-console {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+  .mqtt-console-header {
+    background: var(--bg3);
+    border-bottom: 1px solid var(--border);
+    padding: 8px 12px;
+    font-size: 11px;
+    color: var(--text3);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--mono);
+  }
+  .mqtt-input-row {
+    display: flex;
+    gap: 8px;
+    padding: 10px;
+    border-bottom: 1px solid var(--border);
+  }
+  .mqtt-input-row input { flex: 1; font-size: 12px; }
+  .mqtt-log {
+    padding: 10px 12px;
+    max-height: 160px;
+    overflow-y: auto;
+    font-family: var(--mono);
+    font-size: 11px;
+    line-height: 2;
+  }
+  .mq-pub { color: #79c0ff; }
+  .mq-sub { color: var(--green); }
+  .mq-err { color: var(--red); }
+
+  /* ─── GAUGE ──────────────────────────────────── */
+  .gauge-wrap { display: flex; flex-direction: column; align-items: center; padding: 10px 0; }
+  .gauge-svg { width: 140px; height: 80px; }
+  .gauge-val { font-size: 28px; font-weight: 300; font-family: var(--mono); color: var(--text); }
+  .gauge-label { font-size: 11px; color: var(--text3); }
+
+  /* ─── WIRING TABLE ───────────────────────────── */
+  .wire-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .wire-table th { text-align: left; padding: 8px 10px; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text3); border-bottom: 1px solid var(--border); }
+  .wire-table td { padding: 9px 10px; border-bottom: 1px solid var(--border2); color: var(--text2); font-family: var(--mono); }
+  .wire-table tr:last-child td { border-bottom: none; }
+  .wire-table tr:hover td { background: var(--bg3); }
+  .pin-badge { display: inline-block; background: var(--purple-dim); color: var(--purple); padding: 1px 7px; border-radius: 4px; font-size: 11px; }
+
+  /* ─── SCROLLBAR ──────────────────────────────── */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--bg4); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--text3); }
+
+  /* ─── RESPONSIVE ─────────────────────────────── */
+  @media(max-width:700px) {
+    .sidebar { transform: translateX(-100%); }
+    .main { margin-left: 0; }
+    .grid-4, .grid-3 { grid-template-columns: 1fr 1fr; }
+    .grid-2 { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+<!-- ═══════════════════════════════════════════════════
+     SIDEBAR
+═══════════════════════════════════════════════════ -->
+<aside class="sidebar">
+  <div class="sidebar-header">
+    <div class="logo">
+      <div class="logo-icon">
+        <svg viewBox="0 0 24 24"><path d="M17 8C8 10 5.9 16.17 3.82 21H5.71C6.66 19 7.9 17.2 9.6 15.85C11.5 17.01 12.77 19.05 13.13 21H15.15C14.78 18.23 13.33 15.8 11.23 14.16C14.07 11.1 17.12 10 20 10V8H17Z"/></svg>
+      </div>
+      <div>
+        <div class="logo-text">SmartHVAC</div>
+        <div class="logo-sub">IoT Control System</div>
+      </div>
+    </div>
+    <div class="status-bar">
+      <div class="dot"></div>
+      ESP32 Connected — 192.168.1.45
+    </div>
+  </div>
+
+  <nav class="nav">
+    <div class="nav-section-label">Monitoring</div>
+    <button class="nav-item active" onclick="showSection('dashboard', this)">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/></svg>
+      Dashboard
+      <span class="nav-badge badge-green" id="badge-live">LIVE</span>
+    </button>
+    <button class="nav-item" onclick="showSection('analytics', this)">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 14H7v-2h5v2zm5-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg>
+      Analytics
+    </button>
+
+    <div class="nav-section-label">Control</div>
+    <button class="nav-item" onclick="showSection('controls', this)">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
+      Controls
+      <span class="nav-badge badge-blue" id="badge-mode">HYBRID</span>
+    </button>
+    <button class="nav-item" onclick="showSection('schedule', this)">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M17 12h-5v5h5v-5zM16 1v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2h-1V1h-2zm3 18H5V8h14v11z"/></svg>
+      Schedule
+    </button>
+
+    <div class="nav-section-label">Setup</div>
+    <button class="nav-item" onclick="showSection('device', this)">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M9 3H5c-1.1 0-2 .9-2 2v4c0 1.1.9 2 2 2h4c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 6H5V5h4v4zm10-6h-4c-1.1 0-2 .9-2 2v4c0 1.1.9 2 2 2h4c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 6h-4V5h4v4zM9 13H5c-1.1 0-2 .9-2 2v4c0 1.1.9 2 2 2h4c1.1 0 2-.9 2-2v-4c0-1.1-.9-2-2-2zm0 6H5v-4h4v4zm10-6h-4c-1.1 0-2 .9-2 2v4c0 1.1.9 2 2 2h4c1.1 0 2-.9 2-2v-4c0-1.1-.9-2-2-2zm0 6h-4v-4h4v4z"/></svg>
+      Device Setup
+    </button>
+    <button class="nav-item" onclick="showSection('architecture', this)">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M17 12h-5v5h5v-5zM7 2v2H3v18h18V4h-4V2h-2v2H9V2H7zM19 20H5V6h14v14z"/></svg>
+      Architecture
+    </button>
+    <button class="nav-item" onclick="showSection('code', this)">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M9.4 16.6L4.8 12l4.6-4.6L8 6l-6 6 6 6 1.4-1.4zm5.2 0l4.6-4.6-4.6-4.6L16 6l6 6-6 6-1.4-1.4z"/></svg>
+      Code Guide
+    </button>
+  </nav>
+
+  <div class="sidebar-footer">
+    <div class="device-info">
+      <span><b>Board</b> ESP32 DevKit v4</span>
+      <span><b>Firmware</b> v2.1.3</span>
+      <span><b>Uptime</b> <span id="uptime">00:04:12</span></span>
+      <span><b>MQTT</b> <span style="color:var(--green)">Connected</span></span>
+    </div>
+  </div>
+</aside>
+
+<!-- ═══════════════════════════════════════════════════
+     MAIN
+═══════════════════════════════════════════════════ -->
+<main class="main">
+
+  <div class="topbar">
+    <span class="topbar-title" id="topbar-title">Dashboard</span>
+    <span class="chip chip-green"><span class="dot" style="width:5px;height:5px;animation:blink 2s infinite;background:var(--green)"></span> ESP32 Online</span>
+    <span class="chip chip-blue">Cloud Sync Active</span>
+    <span class="chip chip-amber" id="chip-mode">Hybrid Mode</span>
+  </div>
+
+  <div class="content">
+
+    <!-- ══════════════════════════════════════
+         DASHBOARD
+    ══════════════════════════════════════ -->
+    <div id="sec-dashboard" class="section active">
+
+      <div class="grid-4">
+        <div class="metric blue">
+          <div class="metric-label">Temperature</div>
+          <div class="metric-main">
+            <span class="metric-val" id="m-temp">24.1</span>
+            <span class="metric-unit">°C</span>
+          </div>
+          <div class="metric-change" id="m-temp-status" style="color:var(--amber)">Above threshold — AC ON</div>
+          <div class="metric-icon" style="background:var(--blue-dim)">
+            <svg viewBox="0 0 24 24" fill="#79c0ff"><path d="M15 13V5c0-1.66-1.34-3-3-3S9 3.34 9 5v8c-1.21.91-2 2.37-2 4 0 2.76 2.24 5 5 5s5-2.24 5-5c0-1.63-.79-3.09-2-4z"/></svg>
+          </div>
+        </div>
+
+        <div class="metric green">
+          <div class="metric-label">Humidity</div>
+          <div class="metric-main">
+            <span class="metric-val" id="m-hum">58</span>
+            <span class="metric-unit">%</span>
+          </div>
+          <div class="metric-change" style="color:var(--green)">Comfortable range</div>
+          <div class="metric-icon" style="background:var(--green-dim)">
+            <svg viewBox="0 0 24 24" fill="#3fb950"><path d="M12 2c-5.33 4.55-8 8.48-8 11.8 0 4.98 3.8 8.2 8 8.2s8-3.22 8-8.2c0-3.32-2.67-7.25-8-11.8z"/></svg>
+          </div>
+        </div>
+
+        <div class="metric amber">
+          <div class="metric-label">Energy Today</div>
+          <div class="metric-main">
+            <span class="metric-val" id="m-energy">3.2</span>
+            <span class="metric-unit">kWh</span>
+          </div>
+          <div class="metric-change" style="color:var(--green)">↓ 18% vs yesterday</div>
+          <div class="metric-icon" style="background:var(--amber-dim)">
+            <svg viewBox="0 0 24 24" fill="#d29922"><path d="M7 2v11h3v9l7-12h-4l4-8z"/></svg>
+          </div>
+        </div>
+
+        <div class="metric purple">
+          <div class="metric-label">Control Mode</div>
+          <div class="metric-main" style="margin-top:4px;">
+            <span class="metric-val" style="font-size:20px;" id="m-mode">Hybrid</span>
+          </div>
+          <div class="metric-change" style="color:var(--purple)">Local + Cloud active</div>
+          <div class="metric-icon" style="background:var(--purple-dim)">
+            <svg viewBox="0 0 24 24" fill="#bc8cff"><path d="M21 3L3 10.53v.98l6.84 2.65L12.48 21h.98L21 3z"/></svg>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-title">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M3.5 18.49l6-6.01 4 4L22 6.92l-1.41-1.41-7.09 7.97-4-4L2 16.99z"/></svg>
+            Temperature — live feed
+          </div>
+          <div class="chart-wrap"><canvas id="chart-temp"></canvas></div>
+        </div>
+        <div class="card">
+          <div class="card-title">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M3.5 18.49l6-6.01 4 4L22 6.92l-1.41-1.41-7.09 7.97-4-4L2 16.99z"/></svg>
+            Humidity — live feed
+          </div>
+          <div class="chart-wrap"><canvas id="chart-hum"></canvas></div>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-title">Energy breakdown — today</div>
+          <div class="prog-wrap">
+            <div class="prog-label"><span>AC Compressor</span><b id="e1v">1.8 kWh</b></div>
+            <div class="prog-bar"><div class="prog-fill" id="e1b" style="width:56%;background:#388bfd;"></div></div>
+          </div>
+          <div class="prog-wrap">
+            <div class="prog-label"><span>Fan Motor</span><b>0.9 kWh</b></div>
+            <div class="prog-bar"><div class="prog-fill" style="width:28%;background:#3fb950;"></div></div>
+          </div>
+          <div class="prog-wrap">
+            <div class="prog-label"><span>Heating Element</span><b>0.5 kWh</b></div>
+            <div class="prog-bar"><div class="prog-fill" style="width:16%;background:#d29922;"></div></div>
+          </div>
+          <div class="prog-wrap">
+            <div class="prog-label"><span>Control Electronics</span><b>0.1 kWh</b></div>
+            <div class="prog-bar"><div class="prog-fill" style="width:3%;background:#bc8cff;"></div></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">System event log</div>
+          <div class="log-wrap" id="event-log">
+            <div class="log-entry">
+              <span class="log-time">12:01:44</span>
+              <span class="log-tag lt-local">LOCAL</span>
+              <span class="log-msg">Temp exceeded 23°C threshold — AC relay ON</span>
+            </div>
+            <div class="log-entry">
+              <span class="log-time">11:58:22</span>
+              <span class="log-tag lt-cloud">CLOUD</span>
+              <span class="log-msg">Optimization: reduce fan speed 20% — savings mode</span>
+            </div>
+            <div class="log-entry">
+              <span class="log-time">11:45:11</span>
+              <span class="log-tag lt-alert">ALERT</span>
+              <span class="log-msg">Humidity spike 78% — dehumidifier activated</span>
+            </div>
+            <div class="log-entry">
+              <span class="log-time">11:30:05</span>
+              <span class="log-tag lt-local">LOCAL</span>
+              <span class="log-msg">DHT22 read: 26.3°C / 72% RH — within bounds</span>
+            </div>
+            <div class="log-entry">
+              <span class="log-time">11:15:00</span>
+              <span class="log-tag lt-cloud">CLOUD</span>
+              <span class="log-msg">ML model updated setpoint to 22°C for 2h block</span>
+            </div>
+            <div class="log-entry">
+              <span class="log-time">11:00:00</span>
+              <span class="log-tag lt-ok">OK</span>
+              <span class="log-msg">System initialized — ESP32 connected to MQTT broker</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════
+         ANALYTICS
+    ══════════════════════════════════════ -->
+    <div id="sec-analytics" class="section">
+      <div class="card grid-1">
+        <div class="card-title">24-hour temperature history</div>
+        <div class="chart-wrap" style="height:240px;"><canvas id="chart-24h"></canvas></div>
+      </div>
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-title">Energy comparison — 7 days</div>
+          <div class="chart-wrap"><canvas id="chart-energy"></canvas></div>
+        </div>
+        <div class="card">
+          <div class="card-title">Loop decision breakdown</div>
+          <div class="chart-wrap"><canvas id="chart-loop"></canvas></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════
+         CONTROLS
+    ══════════════════════════════════════ -->
+    <div id="sec-controls" class="section">
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-title">Setpoint configuration</div>
+
+          <div class="control-group">
+            <div class="control-label">
+              <span>Target temperature</span>
+              <span id="lbl-temp">22°C</span>
+            </div>
+            <input type="range" min="16" max="30" value="22" step="1" oninput="document.getElementById('lbl-temp').textContent=this.value+'°C'">
+          </div>
+
+          <div class="control-group">
+            <div class="control-label">
+              <span>Fan speed</span>
+              <span id="lbl-fan">60%</span>
+            </div>
+            <input type="range" min="0" max="100" value="60" step="5" oninput="document.getElementById('lbl-fan').textContent=this.value+'%'">
+          </div>
+
+          <div class="control-group">
+            <div class="control-label">
+              <span>Humidity target</span>
+              <span id="lbl-hum">55%</span>
+            </div>
+            <input type="range" min="30" max="80" value="55" step="5" oninput="document.getElementById('lbl-hum').textContent=this.value+'%'">
+          </div>
+
+          <div class="control-group">
+            <div class="control-label">
+              <span>Temperature hysteresis (±)</span>
+              <span id="lbl-hys">1.0°C</span>
+            </div>
+            <input type="range" min="0.5" max="3" value="1" step="0.5" oninput="document.getElementById('lbl-hys').textContent=parseFloat(this.value).toFixed(1)+'°C'">
+          </div>
+
+          <div style="display:flex;gap:8px;margin-top:6px;">
+            <button class="btn btn-primary" onclick="applySettings()">
+              <svg viewBox="0 0 24 24" fill="currentColor" style="width:14px;height:14px;"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+              Apply to ESP32
+            </button>
+            <button class="btn" onclick="resetDefaults()">Reset defaults</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Device toggles</div>
+          <div class="toggle-group">
+            <div class="toggle-row">
+              <div class="toggle-info"><p>Air Conditioner</p><small>Compressor unit — Zone A (GPIO 16)</small></div>
+              <button class="toggle-sw on" id="t-ac" onclick="toggle(this)"></button>
+            </div>
+            <div class="toggle-row">
+              <div class="toggle-info"><p>Ventilation Fan</p><small>Fresh air intake fan (GPIO 17)</small></div>
+              <button class="toggle-sw on" id="t-fan" onclick="toggle(this)"></button>
+            </div>
+            <div class="toggle-row">
+              <div class="toggle-info"><p>Dehumidifier</p><small>Moisture control unit (GPIO 18)</small></div>
+              <button class="toggle-sw off" id="t-dh" onclick="toggle(this)"></button>
+            </div>
+            <div class="toggle-row">
+              <div class="toggle-info"><p>Heating Element</p><small>Electric heater backup (GPIO 19)</small></div>
+              <button class="toggle-sw off" id="t-heat" onclick="toggle(this)"></button>
+            </div>
+            <div class="toggle-row">
+              <div class="toggle-info"><p>Cloud Optimization</p><small>Global ML energy optimization</small></div>
+              <button class="toggle-sw on" id="t-cloud" onclick="toggle(this)"></button>
+            </div>
+            <div class="toggle-row">
+              <div class="toggle-info"><p>Auto Scheduling</p><small>Predictive occupancy mode</small></div>
+              <button class="toggle-sw off" id="t-sched" onclick="toggle(this)"></button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">MQTT command console</div>
+        <div class="mqtt-console">
+          <div class="mqtt-console-header">
+            <span class="dot" style="background:var(--green);width:7px;height:7px;animation:blink 2s infinite;"></span>
+            broker: localhost:1883 | topic: hvac/cmd | QoS: 1
+          </div>
+          <div class="mqtt-input-row">
+            <select id="mqtt-topic" style="width:200px;">
+              <option value="hvac/cmd">hvac/cmd</option>
+              <option value="hvac/setpoint">hvac/setpoint</option>
+              <option value="hvac/relay">hvac/relay</option>
+              <option value="hvac/config">hvac/config</option>
+            </select>
+            <input type="text" id="mqtt-payload" placeholder='{"setpoint":22,"fan":60,"ac":"on"}' style="font-size:12px;">
+            <button class="btn btn-primary" onclick="publishMqtt()">Publish</button>
+          </div>
+          <div class="mqtt-log" id="mqtt-log">
+            <div class="mq-sub">[12:01:12] ← SUB hvac/sensors | {"temp":24.1,"hum":58,"ac":1,"fan":60}</div>
+            <div class="mq-pub">[12:01:10] → PUB hvac/cmd | {"setpoint":22,"fan":60} — ACK OK</div>
+            <div class="mq-sub">[12:00:55] ← SUB hvac/status | {"mode":"hybrid","uptime":252}</div>
+            <div class="mq-pub">[12:00:30] → PUB hvac/setpoint | {"value":22} — ACK OK</div>
+            <div class="mq-sub">[12:00:00] ← CONNECTED to broker localhost:1883</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════
+         SCHEDULE
+    ══════════════════════════════════════ -->
+    <div id="sec-schedule" class="section">
+      <div class="alert alert-info">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
+        Schedules send optimized setpoints to the ESP32 via MQTT at the scheduled time. The local loop overrides if an emergency condition is detected.
+      </div>
+      <div class="card">
+        <div class="card-title">Weekly schedule — setpoints by time block</div>
+        <div id="schedule-grid" style="display:grid;grid-template-columns:80px repeat(7,1fr);gap:1px;background:var(--border);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;font-size:12px;">
+        </div>
+        <div style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+          <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text3);">
+            <div style="width:12px;height:12px;border-radius:3px;background:var(--blue-dim);border:1px solid rgba(56,139,253,0.3);"></div>Cooling
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text3);">
+            <div style="width:12px;height:12px;border-radius:3px;background:var(--amber-dim);border:1px solid rgba(210,153,34,0.3);"></div>Heating
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text3);">
+            <div style="width:12px;height:12px;border-radius:3px;background:var(--bg4);border:1px solid var(--border);"></div>Off
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════
+         DEVICE SETUP
+    ══════════════════════════════════════ -->
+    <div id="sec-device" class="section">
+      <div class="alert alert-success">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+        Your project uses ESP32 + DHT22 + 4-channel relay, connecting over WiFi via MQTT to the cloud server with a hybrid control loop.
+      </div>
+
+      <div class="card" style="margin-bottom:14px;">
+        <div class="card-title">Hardware components</div>
+        <div class="device-grid">
+          <div class="device-item active-device">
+            <div class="device-status-dot dsd-on"></div>
+            <div class="device-name">ESP32 DevKit v4</div>
+            <div class="device-role">Main microcontroller</div>
+            <div class="device-detail">
+              IP: 192.168.1.45<br>
+              MAC: A4:CF:12:34:56:78<br>
+              WiFi: 2.4GHz b/g/n<br>
+              CPU: 240MHz dual-core<br>
+              RAM: 520KB SRAM<br>
+              Flash: 4MB
+            </div>
+          </div>
+          <div class="device-item active-device">
+            <div class="device-status-dot dsd-on"></div>
+            <div class="device-name">DHT22 Sensor</div>
+            <div class="device-role">Temperature + Humidity</div>
+            <div class="device-detail">
+              Pin: GPIO 4<br>
+              Range: -40 to +80°C<br>
+              Accuracy: ±0.5°C, ±2% RH<br>
+              Sample rate: 0.5 Hz<br>
+              Pull-up: 10kΩ to 3.3V<br>
+              Power: 3.3–5V
+            </div>
+          </div>
+          <div class="device-item active-device">
+            <div class="device-status-dot dsd-on"></div>
+            <div class="device-name">4-CH Relay Module</div>
+            <div class="device-role">Actuator controller</div>
+            <div class="device-detail">
+              IN1: GPIO 16 → AC<br>
+              IN2: GPIO 17 → Fan<br>
+              IN3: GPIO 18 → Dehumid<br>
+              IN4: GPIO 19 → Heater<br>
+              Trigger: 5V LOW active<br>
+              Load: 10A / 250VAC
+            </div>
+          </div>
+          <div class="device-item active-device">
+            <div class="device-status-dot dsd-on"></div>
+            <div class="device-name">OLED Display</div>
+            <div class="device-role">Local status display</div>
+            <div class="device-detail">
+              Protocol: I2C<br>
+              SDA: GPIO 21<br>
+              SCL: GPIO 22<br>
+              I2C Addr: 0x3C<br>
+              Size: 128×64 px<br>
+              Power: 3.3V
+            </div>
+          </div>
+          <div class="device-item inactive-device">
+            <div class="device-status-dot dsd-off"></div>
+            <div class="device-name">MQ-135 CO₂ Sensor</div>
+            <div class="device-role">Air quality (optional)</div>
+            <div class="device-detail">
+              Pin: GPIO 34 (ADC)<br>
+              Range: 10–300 ppm<br>
+              Power: 5V<br>
+              Warmup: 24 hours<br>
+              Status: Not connected
+            </div>
+          </div>
+          <div class="device-item inactive-device">
+            <div class="device-status-dot dsd-off"></div>
+            <div class="device-name">PIR Motion Sensor</div>
+            <div class="device-role">Occupancy detection (opt)</div>
+            <div class="device-detail">
+              Pin: GPIO 35<br>
+              Range: 7 meters<br>
+              Angle: 120°<br>
+              Power: 5V<br>
+              Status: Not connected
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-title">Wiring connections</div>
+          <table class="wire-table">
+            <thead>
+              <tr><th>Component</th><th>ESP32 Pin</th><th>Notes</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>DHT22 VCC</td><td><span class="pin-badge">3.3V</span></td><td>Or 5V (both work)</td></tr>
+              <tr><td>DHT22 DATA</td><td><span class="pin-badge">GPIO 4</span></td><td>10kΩ pull-up to 3.3V</td></tr>
+              <tr><td>DHT22 GND</td><td><span class="pin-badge">GND</span></td><td></td></tr>
+              <tr><td>Relay IN1 (AC)</td><td><span class="pin-badge">GPIO 16</span></td><td>LOW active trigger</td></tr>
+              <tr><td>Relay IN2 (Fan)</td><td><span class="pin-badge">GPIO 17</span></td><td></td></tr>
+              <tr><td>Relay IN3 (DH)</td><td><span class="pin-badge">GPIO 18</span></td><td></td></tr>
+              <tr><td>Relay IN4 (Heat)</td><td><span class="pin-badge">GPIO 19</span></td><td></td></tr>
+              <tr><td>Relay VCC</td><td><span class="pin-badge">5V / VIN</span></td><td>Use external 5V for safety</td></tr>
+              <tr><td>OLED SDA</td><td><span class="pin-badge">GPIO 21</span></td><td>I2C data</td></tr>
+              <tr><td>OLED SCL</td><td><span class="pin-badge">GPIO 22</span></td><td>I2C clock</td></tr>
+              <tr><td>OLED VCC</td><td><span class="pin-badge">3.3V</span></td><td></td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Software installation steps</div>
+          <div class="step-list">
+            <div class="step">
+              <div class="step-num blue">1</div>
+              <div class="step-body">
+                <p>Install Arduino IDE 2.x</p>
+                <small>Download from arduino.cc/en/software</small>
+              </div>
+            </div>
+            <div class="step">
+              <div class="step-num blue">2</div>
+              <div class="step-body">
+                <p>Add ESP32 board package</p>
+                <small>File → Preferences → Additional URLs:<br>https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json</small>
+              </div>
+            </div>
+            <div class="step">
+              <div class="step-num blue">3</div>
+              <div class="step-body">
+                <p>Install required libraries</p>
+                <small>Tools → Manage Libraries:<br>DHT sensor library (Adafruit) · PubSubClient · ArduinoJson · Adafruit SSD1306</small>
+              </div>
+            </div>
+            <div class="step">
+              <div class="step-num blue">4</div>
+              <div class="step-body">
+                <p>Install Mosquitto MQTT broker</p>
+                <small>sudo apt install mosquitto mosquitto-clients<br>Or use HiveMQ Cloud / AWS IoT Core</small>
+              </div>
+            </div>
+            <div class="step">
+              <div class="step-num blue">5</div>
+              <div class="step-body">
+                <p>Select board and flash</p>
+                <small>Tools → Board → ESP32 Dev Module<br>Tools → Port → COMx or /dev/ttyUSB0<br>Upload speed: 921600 baud</small>
+              </div>
+            </div>
+            <div class="step">
+              <div class="step-num green">6</div>
+              <div class="step-body">
+                <p>Verify in Serial Monitor</p>
+                <small>115200 baud — you should see WiFi connected + MQTT publish messages</small>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════
+         ARCHITECTURE
+    ══════════════════════════════════════ -->
+    <div id="sec-architecture" class="section">
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-title">Hybrid control loop — system layers</div>
+          <div class="arch-layer" style="border-color:rgba(63,185,80,0.4);">
+            <div class="arch-layer-label" style="color:var(--green)">Sensor layer</div>
+            <div class="arch-layer-items">
+              <span class="arch-chip">DHT22 (Temp/Hum)</span>
+              <span class="arch-chip">MQ-135 (CO₂)</span>
+              <span class="arch-chip">PIR (Motion)</span>
+              <span class="arch-chip">ADC (Voltage)</span>
+            </div>
+          </div>
+          <div class="arch-arrow">↓ GPIO reads every 2 seconds ↓</div>
+          <div class="arch-layer" style="border-color:rgba(56,139,253,0.4);">
+            <div class="arch-layer-label" style="color:var(--blue)">Local control loop — ESP32</div>
+            <div class="arch-layer-items">
+              <span class="arch-chip">Threshold check</span>
+              <span class="arch-chip">PID controller</span>
+              <span class="arch-chip">Relay switching</span>
+              <span class="arch-chip">OLED display</span>
+            </div>
+          </div>
+          <div class="arch-arrow">↑↓ MQTT / HTTP (WiFi) ↑↓</div>
+          <div class="arch-layer" style="border-color:rgba(210,153,34,0.4);">
+            <div class="arch-layer-label" style="color:var(--amber)">Cloud layer — global loop</div>
+            <div class="arch-layer-items">
+              <span class="arch-chip">Time-series DB</span>
+              <span class="arch-chip">ML optimizer</span>
+              <span class="arch-chip">REST API</span>
+              <span class="arch-chip">Web dashboard</span>
+            </div>
+          </div>
+          <div class="arch-arrow">↓ Relay GPIO control ↓</div>
+          <div class="arch-layer" style="border-color:rgba(248,81,73,0.3);">
+            <div class="arch-layer-label" style="color:var(--red)">Actuator layer</div>
+            <div class="arch-layer-items">
+              <span class="arch-chip">AC Compressor</span>
+              <span class="arch-chip">Fan Motor</span>
+              <span class="arch-chip">Dehumidifier</span>
+              <span class="arch-chip">Heater</span>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <div class="card" style="margin-bottom:14px;">
+            <div class="card-title">Decision priority flow</div>
+            <div class="step-list">
+              <div class="step">
+                <div class="step-num blue">1</div>
+                <div class="step-body">
+                  <p>Sensor reads every 2 seconds</p>
+                  <small>DHT22 → ESP32 GPIO 4 — temp + humidity</small>
+                </div>
+              </div>
+              <div class="step">
+                <div class="step-num blue">2</div>
+                <div class="step-body">
+                  <p>Local loop responds immediately</p>
+                  <small>If temp &gt; setpoint+hysteresis → AC ON (no cloud needed)</small>
+                </div>
+              </div>
+              <div class="step">
+                <div class="step-num blue">3</div>
+                <div class="step-body">
+                  <p>Data published to MQTT every 10s</p>
+                  <small>Topic: hvac/sensors — JSON with all sensor readings</small>
+                </div>
+              </div>
+              <div class="step">
+                <div class="step-num amber">4</div>
+                <div class="step-body">
+                  <p>Cloud analyzes 10+ readings</p>
+                  <small>Computes rolling average, applies ML model, finds optimal setpoint</small>
+                </div>
+              </div>
+              <div class="step">
+                <div class="step-num amber">5</div>
+                <div class="step-body">
+                  <p>Cloud sends optimized commands</p>
+                  <small>Topic: hvac/cmd — setpoint, fan %, schedule adjustments</small>
+                </div>
+              </div>
+              <div class="step">
+                <div class="step-num green">6</div>
+                <div class="step-body">
+                  <p>ESP32 applies cloud setpoint</p>
+                  <small>Only when no emergency local condition is active — local always wins</small>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-title">Why hybrid?</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:12px;">
+              <div style="background:var(--blue-dim);border:1px solid rgba(56,139,253,0.2);border-radius:var(--radius-sm);padding:10px;">
+                <div style="color:var(--blue);font-weight:600;margin-bottom:6px;">Local loop benefits</div>
+                <div style="color:var(--text2);line-height:1.8;">
+                  ✓ Zero latency response<br>
+                  ✓ Works offline / no WiFi<br>
+                  ✓ Reliable safety control<br>
+                  ✓ Sub-second switching
+                </div>
+              </div>
+              <div style="background:var(--amber-dim);border:1px solid rgba(210,153,34,0.2);border-radius:var(--radius-sm);padding:10px;">
+                <div style="color:var(--amber);font-weight:600;margin-bottom:6px;">Cloud loop benefits</div>
+                <div style="color:var(--text2);line-height:1.8;">
+                  ✓ Pattern recognition<br>
+                  ✓ 20–30% energy savings<br>
+                  ✓ Predictive scheduling<br>
+                  ✓ Remote monitoring
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════
+         CODE GUIDE
+    ══════════════════════════════════════ -->
+    <div id="sec-code" class="section">
+
+      <div class="code-header">
+        <span class="code-lang">
+          <svg viewBox="0 0 24 24" fill="currentColor" style="width:14px;height:14px;"><path d="M9.4 16.6L4.8 12l4.6-4.6L8 6l-6 6 6 6 1.4-1.4zm5.2 0l4.6-4.6-4.6-4.6L16 6l6 6-6 6-1.4-1.4z"/></svg>
+          C++ / Arduino — ESP32 Full Firmware
+        </span>
+        <button class="code-copy" onclick="copyCode('code-esp32')">Copy</button>
+      </div>
+      <pre id="code-esp32"><span class="cm">// ──────────────────────────────────────────────────────
+// Smart HVAC — ESP32 Full Firmware
+// Project: Hybrid Control Loop Architecture
+// Hardware: ESP32 + DHT22 + 4-CH Relay + OLED SSD1306
+// ──────────────────────────────────────────────────────</span>
+
+<span class="kw">#include</span> <span class="str">&lt;WiFi.h&gt;</span>
+<span class="kw">#include</span> <span class="str">&lt;PubSubClient.h&gt;</span>
+<span class="kw">#include</span> <span class="str">&lt;DHT.h&gt;</span>
+<span class="kw">#include</span> <span class="str">&lt;ArduinoJson.h&gt;</span>
+<span class="kw">#include</span> <span class="str">&lt;Adafruit_GFX.h&gt;</span>
+<span class="kw">#include</span> <span class="str">&lt;Adafruit_SSD1306.h&gt;</span>
+
+<span class="cm">// ── Pin Definitions ───────────────────────────────────</span>
+<span class="kw">#define</span> <span class="var">DHTPIN</span>       4
+<span class="kw">#define</span> <span class="var">DHTTYPE</span>     DHT22
+<span class="kw">#define</span> <span class="var">RELAY_AC</span>    16   <span class="cm">// Air conditioner</span>
+<span class="kw">#define</span> <span class="var">RELAY_FAN</span>   17   <span class="cm">// Ventilation fan</span>
+<span class="kw">#define</span> <span class="var">RELAY_DH</span>    18   <span class="cm">// Dehumidifier</span>
+<span class="kw">#define</span> <span class="var">RELAY_HEAT</span>  19   <span class="cm">// Heater</span>
+<span class="kw">#define</span> <span class="var">OLED_SDA</span>    21
+<span class="kw">#define</span> <span class="var">OLED_SCL</span>    22
+
+<span class="cm">// ── Network & MQTT Config ──────────────────────────────</span>
+<span class="kw">const char</span>* <span class="var">WIFI_SSID</span>   = <span class="str">"YourWiFiName"</span>;
+<span class="kw">const char</span>* <span class="var">WIFI_PASS</span>   = <span class="str">"YourWiFiPassword"</span>;
+<span class="kw">const char</span>* <span class="var">MQTT_SERVER</span> = <span class="str">"192.168.1.100"</span>;
+<span class="kw">const int</span>   <span class="var">MQTT_PORT</span>   = <span class="num">1883</span>;
+<span class="kw">const char</span>* <span class="var">CLIENT_ID</span>   = <span class="str">"esp32-hvac-01"</span>;
+
+<span class="cm">// Topics</span>
+<span class="kw">const char</span>* <span class="var">TOPIC_PUB</span>    = <span class="str">"hvac/sensors"</span>;
+<span class="kw">const char</span>* <span class="var">TOPIC_CMD</span>    = <span class="str">"hvac/cmd"</span>;
+<span class="kw">const char</span>* <span class="var">TOPIC_STATUS</span> = <span class="str">"hvac/status"</span>;
+
+<span class="cm">// ── Control Parameters ─────────────────────────────────</span>
+<span class="kw">float</span>  <span class="var">setpoint</span>    = <span class="num">22.0</span>;  <span class="cm">// Target °C</span>
+<span class="kw">float</span>  <span class="var">hysteresis</span> = <span class="num">1.0</span>;   <span class="cm">// ±°C dead-band</span>
+<span class="kw">float</span>  <span class="var">humTarget</span>  = <span class="num">55.0</span>;  <span class="cm">// Target %RH</span>
+<span class="kw">int</span>    <span class="var">fanSpeed</span>   = <span class="num">60</span>;    <span class="cm">// Fan % (0-100)</span>
+<span class="kw">bool</span>   <span class="var">cloudMode</span>  = <span class="kw">true</span>;  <span class="cm">// Enable cloud optimization</span>
+
+<span class="cm">// ── Instances ──────────────────────────────────────────</span>
+<span class="type">DHT</span>               dht(<span class="var">DHTPIN</span>, <span class="var">DHTTYPE</span>);
+<span class="type">WiFiClient</span>        espClient;
+<span class="type">PubSubClient</span>      mqttClient(espClient);
+<span class="type">Adafruit_SSD1306</span>  display(<span class="num">128</span>, <span class="num">64</span>, &Wire);
+
+<span class="kw">unsigned long</span> <span class="var">lastPublish</span>  = <span class="num">0</span>;
+<span class="kw">unsigned long</span> <span class="var">lastSample</span>   = <span class="num">0</span>;
+<span class="kw">float</span>         <span class="var">lastTemp</span>     = <span class="num">0</span>;
+<span class="kw">float</span>         <span class="var">lastHum</span>      = <span class="num">0</span>;
+
+<span class="cm">// ── WiFi Setup ─────────────────────────────────────────</span>
+<span class="kw">void</span> <span class="fn">setupWiFi</span>() {
+  WiFi.begin(<span class="var">WIFI_SSID</span>, <span class="var">WIFI_PASS</span>);
+  Serial.print(<span class="str">"Connecting to WiFi"</span>);
+  <span class="kw">while</span> (WiFi.status() != WL_CONNECTED) {
+    delay(<span class="num">500</span>);
+    Serial.print(<span class="str">"."</span>);
+  }
+  Serial.println(<span class="str">"\nWiFi OK — IP: "</span> + WiFi.localIP().toString());
+}
+
+<span class="cm">// ── MQTT Callback (receive cloud commands) ─────────────</span>
+<span class="kw">void</span> <span class="fn">mqttCallback</span>(<span class="kw">char</span>* topic, <span class="kw">byte</span>* payload, <span class="kw">unsigned int</span> length) {
+  <span class="type">StaticJsonDocument</span>&lt;<span class="num">256</span>&gt; doc;
+  <span class="kw">if</span> (deserializeJson(doc, payload, length) != DeserializationError::Ok) <span class="kw">return</span>;
+
+  <span class="kw">if</span> (doc.containsKey(<span class="str">"setpoint"</span>))  setpoint   = doc[<span class="str">"setpoint"</span>].as&lt;<span class="kw">float</span>&gt;();
+  <span class="kw">if</span> (doc.containsKey(<span class="str">"fan"</span>))       fanSpeed   = doc[<span class="str">"fan"</span>].as&lt;<span class="kw">int</span>&gt;();
+  <span class="kw">if</span> (doc.containsKey(<span class="str">"hum_target"</span>)) humTarget  = doc[<span class="str">"hum_target"</span>].as&lt;<span class="kw">float</span>&gt;();
+
+  <span class="cm">// Direct relay control from cloud</span>
+  <span class="kw">if</span> (doc.containsKey(<span class="str">"ac"</span>))   digitalWrite(<span class="var">RELAY_AC</span>,   doc[<span class="str">"ac"</span>]   == <span class="str">"on"</span> ? HIGH : LOW);
+  <span class="kw">if</span> (doc.containsKey(<span class="str">"fan_on"</span>)) digitalWrite(<span class="var">RELAY_FAN</span>, doc[<span class="str">"fan_on"</span>] ? HIGH : LOW);
+
+  Serial.printf(<span class="str">"Cloud CMD: setpoint=%.1f fan=%d%%\n"</span>, setpoint, fanSpeed);
+}
+
+<span class="cm">// ── MQTT Reconnect ─────────────────────────────────────</span>
+<span class="kw">void</span> <span class="fn">mqttReconnect</span>() {
+  <span class="kw">while</span> (!mqttClient.connected()) {
+    Serial.print(<span class="str">"MQTT connecting..."</span>);
+    <span class="kw">if</span> (mqttClient.connect(<span class="var">CLIENT_ID</span>)) {
+      mqttClient.subscribe(<span class="var">TOPIC_CMD</span>);
+      Serial.println(<span class="str">"OK"</span>);
+    } <span class="kw">else</span> {
+      Serial.printf(<span class="str">"Failed rc=%d — retry in 5s\n"</span>, mqttClient.state());
+      delay(<span class="num">5000</span>);
+    }
+  }
+}
+
+<span class="cm">// ── LOCAL CONTROL LOOP ─────────────────────────────────
+// This runs every loop() — no cloud required
+// Priority: local always overrides cloud in emergencies</span>
+<span class="kw">void</span> <span class="fn">localControlLoop</span>(<span class="kw">float</span> temp, <span class="kw">float</span> hum) {
+  <span class="cm">// Temperature control with hysteresis dead-band</span>
+  <span class="kw">if</span> (temp > setpoint + hysteresis) {
+    digitalWrite(<span class="var">RELAY_AC</span>,   HIGH);  <span class="cm">// AC ON</span>
+    digitalWrite(<span class="var">RELAY_FAN</span>,  HIGH);  <span class="cm">// Fan ON</span>
+    digitalWrite(<span class="var">RELAY_HEAT</span>, LOW);   <span class="cm">// Heater OFF</span>
+    Serial.println(<span class="str">"[LOCAL] COOLING — AC ON"</span>);
+  }
+  <span class="kw">else if</span> (temp &lt; setpoint - hysteresis) {
+    digitalWrite(<span class="var">RELAY_AC</span>,   LOW);   <span class="cm">// AC OFF</span>
+    digitalWrite(<span class="var">RELAY_HEAT</span>, HIGH);  <span class="cm">// Heater ON</span>
+    digitalWrite(<span class="var">RELAY_FAN</span>,  HIGH);  <span class="cm">// Circulate</span>
+    Serial.println(<span class="str">"[LOCAL] HEATING — Heater ON"</span>);
+  }
+  <span class="kw">else</span> {
+    digitalWrite(<span class="var">RELAY_AC</span>,   LOW);
+    digitalWrite(<span class="var">RELAY_HEAT</span>, LOW);
+    Serial.println(<span class="str">"[LOCAL] IDLE — within setpoint"</span>);
+  }
+
+  <span class="cm">// Humidity control</span>
+  <span class="kw">if</span> (hum > humTarget + <span class="num">5.0</span>) {
+    digitalWrite(<span class="var">RELAY_DH</span>, HIGH);
+    Serial.println(<span class="str">"[LOCAL] Dehumidifier ON"</span>);
+  } <span class="kw">else if</span> (hum &lt; humTarget - <span class="num">5.0</span>) {
+    digitalWrite(<span class="var">RELAY_DH</span>, LOW);
+  }
+}
+
+<span class="cm">// ── CLOUD LOOP — Publish sensor data ──────────────────</span>
+<span class="kw">void</span> <span class="fn">publishSensorData</span>(<span class="kw">float</span> temp, <span class="kw">float</span> hum) {
+  <span class="type">StaticJsonDocument</span>&lt;<span class="num">256</span>&gt; doc;
+  doc[<span class="str">"device_id"</span>] = <span class="var">CLIENT_ID</span>;
+  doc[<span class="str">"temp"</span>]      = round(temp * <span class="num">10.0</span>) / <span class="num">10.0</span>;
+  doc[<span class="str">"hum"</span>]       = round(hum);
+  doc[<span class="str">"ac_on"</span>]     = digitalRead(<span class="var">RELAY_AC</span>);
+  doc[<span class="str">"fan_on"</span>]    = digitalRead(<span class="var">RELAY_FAN</span>);
+  doc[<span class="str">"setpoint"</span>]  = setpoint;
+  doc[<span class="str">"uptime"</span>]    = millis() / <span class="num">1000</span>;
+
+  <span class="kw">char</span> buf[<span class="num">256</span>];
+  serializeJson(doc, buf);
+  mqttClient.publish(<span class="var">TOPIC_PUB</span>, buf);
+  Serial.printf(<span class="str">"[CLOUD] Published: T=%.1f H=%.0f\n"</span>, temp, hum);
+}
+
+<span class="cm">// ── OLED Display Update ────────────────────────────────</span>
+<span class="kw">void</span> <span class="fn">updateDisplay</span>(<span class="kw">float</span> temp, <span class="kw">float</span> hum) {
+  display.clearDisplay();
+  display.setTextColor(SSD1306_WHITE);
+
+  <span class="cm">// Title</span>
+  display.setTextSize(<span class="num">1</span>);
+  display.setCursor(<span class="num">0</span>, <span class="num">0</span>);
+  display.print(<span class="str">"Smart HVAC v2.1"</span>);
+  display.drawLine(<span class="num">0</span>, <span class="num">9</span>, <span class="num">128</span>, <span class="num">9</span>, SSD1306_WHITE);
+
+  <span class="cm">// Temperature — large</span>
+  display.setTextSize(<span class="num">2</span>);
+  display.setCursor(<span class="num">0</span>, <span class="num">14</span>);
+  display.printf(<span class="str">"%.1fC"</span>, temp);
+
+  <span class="cm">// Humidity</span>
+  display.setTextSize(<span class="num">1</span>);
+  display.setCursor(<span class="num">0</span>, <span class="num">36</span>);
+  display.printf(<span class="str">"Hum: %.0f%%"</span>, hum);
+
+  <span class="cm">// Status</span>
+  display.setCursor(<span class="num">0</span>, <span class="num">48</span>);
+  display.print(<span class="str">"Set:"</span>);
+  display.print(setpoint);
+  display.print(<span class="str">"  AC:"</span>);
+  display.print(digitalRead(<span class="var">RELAY_AC</span>) ? <span class="str">"ON"</span> : <span class="str">"off"</span>);
+
+  <span class="cm">// WiFi indicator</span>
+  display.setCursor(<span class="num">100</span>, <span class="num">0</span>);
+  display.print(WiFi.status() == WL_CONNECTED ? <span class="str">"WiFi"</span> : <span class="str">"----"</span>);
+
+  display.display();
+}
+
+<span class="cm">// ── SETUP ──────────────────────────────────────────────</span>
+<span class="kw">void</span> <span class="fn">setup</span>() {
+  Serial.begin(<span class="num">115200</span>);
+
+  <span class="cm">// Relay pins — active HIGH</span>
+  pinMode(<span class="var">RELAY_AC</span>,   OUTPUT); digitalWrite(<span class="var">RELAY_AC</span>,   LOW);
+  pinMode(<span class="var">RELAY_FAN</span>,  OUTPUT); digitalWrite(<span class="var">RELAY_FAN</span>,  LOW);
+  pinMode(<span class="var">RELAY_DH</span>,   OUTPUT); digitalWrite(<span class="var">RELAY_DH</span>,   LOW);
+  pinMode(<span class="var">RELAY_HEAT</span>, OUTPUT); digitalWrite(<span class="var">RELAY_HEAT</span>, LOW);
+
+  dht.begin();
+
+  <span class="cm">// OLED init</span>
+  Wire.begin(<span class="var">OLED_SDA</span>, <span class="var">OLED_SCL</span>);
+  <span class="kw">if</span> (!display.begin(SSD1306_SWITCHCAPVCC, <span class="num">0x3C</span>)) {
+    Serial.println(<span class="str">"OLED init failed"</span>);
+  }
+  display.clearDisplay();
+  display.display();
+
+  setupWiFi();
+  mqttClient.setServer(<span class="var">MQTT_SERVER</span>, <span class="var">MQTT_PORT</span>);
+  mqttClient.setCallback(mqttCallback);
+  mqttClient.setBufferSize(<span class="num">512</span>);
+
+  Serial.println(<span class="str">"Setup complete — entering main loop"</span>);
+}
+
+<span class="cm">// ── MAIN LOOP ──────────────────────────────────────────</span>
+<span class="kw">void</span> <span class="fn">loop</span>() {
+  <span class="cm">// Maintain MQTT connection</span>
+  <span class="kw">if</span> (!mqttClient.connected()) mqttReconnect();
+  mqttClient.loop();
+
+  <span class="kw">unsigned long</span> now = millis();
+
+  <span class="cm">// Sample sensors every 2 seconds</span>
+  <span class="kw">if</span> (now - lastSample >= <span class="num">2000</span>) {
+    lastSample = now;
+    <span class="kw">float</span> temp = dht.readTemperature();
+    <span class="kw">float</span> hum  = dht.readHumidity();
+
+    <span class="kw">if</span> (!isnan(temp) && !isnan(hum)) {
+      lastTemp = temp;
+      lastHum  = hum;
+
+      <span class="cm">// LOCAL CONTROL LOOP — runs every 2s regardless of WiFi</span>
+      localControlLoop(temp, hum);
+      updateDisplay(temp, hum);
+    } <span class="kw">else</span> {
+      Serial.println(<span class="str">"DHT read failed — check wiring"</span>);
+    }
+  }
+
+  <span class="cm">// Publish to cloud every 10 seconds (CLOUD LOOP)</span>
+  <span class="kw">if</span> (now - lastPublish >= <span class="num">10000</span> && mqttClient.connected()) {
+    lastPublish = now;
+    publishSensorData(lastTemp, lastHum);
+  }
+}</pre>
+
+      <div class="code-header">
+        <span class="code-lang">
+          <svg viewBox="0 0 24 24" fill="currentColor" style="width:14px;height:14px;"><path d="M9.4 16.6L4.8 12l4.6-4.6L8 6l-6 6 6 6 1.4-1.4zm5.2 0l4.6-4.6-4.6-4.6L16 6l6 6-6 6-1.4-1.4z"/></svg>
+          Python 3 — Cloud Server (MQTT Subscriber + Optimizer)
+        </span>
+        <button class="code-copy" onclick="copyCode('code-python')">Copy</button>
+      </div>
+      <pre id="code-python"><span class="cm"># ──────────────────────────────────────────────────────
+# Smart HVAC Cloud Server
+# Install: pip install paho-mqtt flask flask-cors
+# Run:     python cloud_server.py
+# ──────────────────────────────────────────────────────</span>
+
+<span class="kw">import</span> paho.mqtt.client <span class="kw">as</span> mqtt
+<span class="kw">import</span> json, time, statistics, threading
+<span class="kw">from</span> flask <span class="kw">import</span> Flask, jsonify, request
+<span class="kw">from</span> flask_cors <span class="kw">import</span> CORS
+<span class="kw">from</span> datetime <span class="kw">import</span> datetime
+<span class="kw">from</span> collections <span class="kw">import</span> deque
+
+<span class="cm"># ── Config ─────────────────────────────────────────────</span>
+<span class="var">BROKER_HOST</span>  = <span class="str">"localhost"</span>
+<span class="var">BROKER_PORT</span>  = <span class="num">1883</span>
+<span class="var">TOPIC_SUB</span>    = <span class="str">"hvac/sensors"</span>
+<span class="var">TOPIC_CMD</span>    = <span class="str">"hvac/cmd"</span>
+<span class="var">WINDOW_SIZE</span>  = <span class="num">10</span>    <span class="cm"># readings before optimizing</span>
+<span class="var">PUBLISH_EVERY</span> = <span class="num">5</span>   <span class="cm"># optimize every N readings</span>
+
+<span class="cm"># ── Global state ───────────────────────────────────────</span>
+<span class="var">readings</span>    = deque(maxlen=<span class="num">100</span>)   <span class="cm"># ring buffer of sensor data</span>
+<span class="var">publish_cnt</span> = <span class="num">0</span>
+<span class="var">mqtt_client</span> = <span class="kw">None</span>
+
+<span class="cm"># ── Global optimizer ───────────────────────────────────</span>
+<span class="kw">def</span> <span class="fn">optimize_setpoint</span>(recent):
+  <span class="str">"""
+  Simple rule-based optimizer. Replace with ML model
+  (scikit-learn, TensorFlow Lite) for production.
+  """</span>
+  temps  = [r[<span class="str">"temp"</span>] <span class="kw">for</span> r <span class="kw">in</span> recent]
+  avg    = statistics.mean(temps)
+  trend  = temps[-<span class="num">1</span>] - temps[<span class="num">0</span>]  <span class="cm"># rising if positive</span>
+  hour   = datetime.now().hour
+
+  <span class="cm"># Time-based comfort adjustments</span>
+  <span class="kw">if</span> <span class="num">22</span> &lt;= hour &lt;= <span class="num">6</span>:   base = <span class="num">24</span>   <span class="cm"># night mode — relaxed</span>
+  <span class="kw">elif</span> <span class="num">7</span> &lt;= hour &lt;= <span class="num">9</span>:  base = <span class="num">22</span>   <span class="cm"># morning — cool</span>
+  <span class="kw">elif</span> <span class="num">10</span> &lt;= hour &lt;= <span class="num">17</span>: base = <span class="num">22</span>  <span class="cm"># work hours — maintain</span>
+  <span class="kw">else</span>:                  base = <span class="num">23</span>   <span class="cm"># evening — slightly warm</span>
+
+  <span class="cm"># Temperature-trend anticipation</span>
+  <span class="kw">if</span> trend > <span class="num">0.5</span>:   base -= <span class="num">1</span>   <span class="cm"># rising fast → pre-cool</span>
+  <span class="kw">elif</span> trend &lt; -<span class="num">0.5</span>: base += <span class="num">1</span>   <span class="cm"># falling → relax setpoint</span>
+
+  fan = <span class="num">40</span> <span class="kw">if</span> avg &lt; base + <span class="num">1</span> <span class="kw">else</span> <span class="num">80</span>  <span class="cm"># ramp fan with load</span>
+  <span class="kw">return</span> {<span class="str">"setpoint"</span>: base, <span class="str">"fan"</span>: fan, <span class="str">"source"</span>: <span class="str">"cloud_opt"</span>}
+
+<span class="cm"># ── MQTT callbacks ─────────────────────────────────────</span>
+<span class="kw">def</span> <span class="fn">on_connect</span>(client, userdata, flags, rc):
+  print(<span class="str">f"MQTT connected (rc={rc})"</span>)
+  client.subscribe(<span class="var">TOPIC_SUB</span>)
+
+<span class="kw">def</span> <span class="fn">on_message</span>(client, userdata, msg):
+  <span class="kw">global</span> publish_cnt
+  <span class="kw">try</span>:
+    data = json.loads(msg.payload)
+    data[<span class="str">"ts"</span>] = datetime.now().isoformat()
+    readings.append(data)
+    publish_cnt += <span class="num">1</span>
+
+    print(<span class="str">f"[SENSOR] T={data['temp']}°C H={data['hum']}%"</span>)
+
+    <span class="cm"># Optimize after every N readings</span>
+    <span class="kw">if</span> publish_cnt % <span class="var">PUBLISH_EVERY</span> == <span class="num">0</span> <span class="kw">and</span> len(readings) >= <span class="var">WINDOW_SIZE</span>:
+      cmd = optimize_setpoint(list(readings)[-<span class="var">WINDOW_SIZE</span>:])
+      client.publish(<span class="var">TOPIC_CMD</span>, json.dumps(cmd))
+      print(<span class="str">f"[CLOUD→ESP32] Optimized: {cmd}"</span>)
+
+  <span class="kw">except</span> Exception <span class="kw">as</span> e:
+    print(<span class="str">f"Message error: {e}"</span>)
+
+<span class="cm"># ── Flask REST API ─────────────────────────────────────</span>
+<span class="var">app</span> = Flask(__name__)
+CORS(app)
+
+@app.route(<span class="str">"/api/readings"</span>)
+<span class="kw">def</span> <span class="fn">get_readings</span>():
+  n = int(request.args.get(<span class="str">"n"</span>, <span class="num">50</span>))
+  <span class="kw">return</span> jsonify(list(readings)[-n:])
+
+@app.route(<span class="str">"/api/command"</span>, methods=[<span class="str">"POST"</span>])
+<span class="kw">def</span> <span class="fn">send_command</span>():
+  cmd = request.json
+  mqtt_client.publish(<span class="var">TOPIC_CMD</span>, json.dumps(cmd))
+  <span class="kw">return</span> jsonify({<span class="str">"status"</span>: <span class="str">"sent"</span>, <span class="str">"cmd"</span>: cmd})
+
+@app.route(<span class="str">"/api/latest"</span>)
+<span class="kw">def</span> <span class="fn">latest</span>():
+  <span class="kw">return</span> jsonify(readings[-<span class="num">1</span>] <span class="kw">if</span> readings <span class="kw">else</span> {})
+
+<span class="cm"># ── Main entry ─────────────────────────────────────────</span>
+<span class="kw">def</span> <span class="fn">start_mqtt</span>():
+  <span class="kw">global</span> mqtt_client
+  mqtt_client = mqtt.Client()
+  mqtt_client.on_connect = on_connect
+  mqtt_client.on_message = on_message
+  mqtt_client.connect(<span class="var">BROKER_HOST</span>, <span class="var">BROKER_PORT</span>)
+  mqtt_client.loop_forever()
+
+<span class="kw">if</span> __name__ == <span class="str">"__main__"</span>:
+  t = threading.Thread(target=start_mqtt, daemon=<span class="kw">True</span>)
+  t.start()
+  print(<span class="str">"Cloud server starting on http://0.0.0.0:5000"</span>)
+  app.run(host=<span class="str">"0.0.0.0"</span>, port=<span class="num">5000</span>)</pre>
+
+      <div class="code-header">
+        <span class="code-lang">
+          <svg viewBox="0 0 24 24" fill="currentColor" style="width:14px;height:14px;"><path d="M9.4 16.6L4.8 12l4.6-4.6L8 6l-6 6 6 6 1.4-1.4zm5.2 0l4.6-4.6-4.6-4.6L16 6l6 6-6 6-1.4-1.4z"/></svg>
+          Shell — Mosquitto MQTT broker setup + test commands
+        </span>
+        <button class="code-copy" onclick="copyCode('code-shell')">Copy</button>
+      </div>
+      <pre id="code-shell"><span class="cm"># ── Install Mosquitto (Ubuntu / Raspberry Pi) ──────────</span>
+sudo apt update
+sudo apt install mosquitto mosquitto-clients -y
+sudo systemctl enable mosquitto
+sudo systemctl start mosquitto
+
+<span class="cm"># ── Test broker is running ─────────────────────────────</span>
+mosquitto_sub -h localhost -t <span class="str">"hvac/#"</span> -v &
+
+<span class="cm"># ── Manually simulate ESP32 sensor data ───────────────</span>
+mosquitto_pub -h localhost -t hvac/sensors \
+  -m <span class="str">'{"temp":25.3,"hum":62,"ac_on":1,"fan_on":1,"setpoint":22}'</span>
+
+<span class="cm"># ── Manually send cloud command to ESP32 ──────────────</span>
+mosquitto_pub -h localhost -t hvac/cmd \
+  -m <span class="str">'{"setpoint":21,"fan":80}'</span>
+
+<span class="cm"># ── Subscribe to see live sensor data ─────────────────</span>
+mosquitto_sub -h localhost -t <span class="str">"hvac/sensors"</span> -v
+
+<span class="cm"># ── Install Python dependencies ────────────────────────</span>
+pip install paho-mqtt flask flask-cors
+
+<span class="cm"># ── Run cloud server ───────────────────────────────────</span>
+python cloud_server.py
+
+<span class="cm"># ── Query REST API ────────────────────────────────────</span>
+curl http://localhost:5000/api/latest
+curl http://localhost:5000/api/readings?n=10
+
+<span class="cm"># ── Send command via REST API ─────────────────────────</span>
+curl -X POST http://localhost:5000/api/command \
+  -H <span class="str">"Content-Type: application/json"</span> \
+  -d <span class="str">'{"setpoint":22,"fan":60}'</span></pre>
+
+    </div><!-- end code section -->
+
+  </div><!-- content -->
+</main>
+</div><!-- app -->
+
+<script>
+// ── SECTION ROUTING ──────────────────────────────────────
+function showSection(name, btn) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
+  document.getElementById('sec-' + name).classList.add('active');
+  btn.classList.add('active');
+
+  const titles = {
+    dashboard: 'Dashboard',
+    analytics: 'Analytics',
+    controls: 'Controls',
+    schedule: 'Schedule',
+    device: 'Device Setup',
+    architecture: 'Architecture',
+    code: 'Code Guide'
+  };
+  document.getElementById('topbar-title').textContent = titles[name] || name;
+
+  if (name === 'analytics') initAnalyticsCharts();
+  if (name === 'schedule') initSchedule();
+}
+
+// ── CHARTS SETUP ─────────────────────────────────────────
+const chartDefaults = {
+  responsive: true,
+  maintainAspectRatio: false,
+  animation: false,
+  plugins: { legend: { display: false } },
+  scales: {
+    x: {
+      ticks: { color: '#6e7681', font: { size: 10 }, maxRotation: 0, maxTicksLimit: 6 },
+      grid: { color: 'rgba(255,255,255,0.04)' },
+      border: { color: 'rgba(255,255,255,0.08)' }
+    },
+    y: {
+      ticks: { color: '#6e7681', font: { size: 10 } },
+      grid: { color: 'rgba(255,255,255,0.04)' },
+      border: { color: 'rgba(255,255,255,0.08)' }
+    }
+  },
+  elements: { point: { radius: 0 }, line: { tension: 0.4, borderWidth: 2 } }
+};
+
+// Generate time labels
+function makeLabels(n, intervalSec) {
+  return Array.from({ length: n }, (_, i) => {
+    const d = new Date(Date.now() - (n - 1 - i) * intervalSec * 1000);
+    return d.toLocaleTimeString('en', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  });
+}
+
+// Live dashboard temp chart
+let tempData = Array.from({ length: 30 }, () => +(22 + Math.random() * 3).toFixed(1));
+let humData  = Array.from({ length: 30 }, () => +(55 + Math.random() * 12).toFixed(0));
+
+const ctxT = document.getElementById('chart-temp').getContext('2d');
+const ctxH = document.getElementById('chart-hum').getContext('2d');
+
+const tempChart = new Chart(ctxT, {
+  type: 'line',
+  data: {
+    labels: makeLabels(30, 2),
+    datasets: [{ data: [...tempData], borderColor: '#388bfd', fill: { target: 'origin', above: 'rgba(56,139,253,0.06)' } }]
+  },
+  options: { ...chartDefaults, scales: { ...chartDefaults.scales, y: { ...chartDefaults.scales.y, min: 18, max: 32 } } }
+});
+
+const humChart = new Chart(ctxH, {
+  type: 'line',
+  data: {
+    labels: makeLabels(30, 2),
+    datasets: [{ data: [...humData], borderColor: '#3fb950', fill: { target: 'origin', above: 'rgba(63,185,80,0.06)' } }]
+  },
+  options: { ...chartDefaults, scales: { ...chartDefaults.scales, y: { ...chartDefaults.scales.y, min: 30, max: 90 } } }
+});
+
+// Analytics charts (lazy-init)
+let analyticsInited = false;
+function initAnalyticsCharts() {
+  if (analyticsInited) return;
+  analyticsInited = true;
+
+  // 24h history
+  const ctx24 = document.getElementById('chart-24h').getContext('2d');
+  const labels24 = Array.from({ length: 24 }, (_, i) => `${String(i).padStart(2, '0')}:00`);
+  const data24 = [23, 22.5, 22, 21.8, 21.5, 21.2, 21, 22, 23.5, 24, 25.2, 26, 26.8, 27, 27.2, 26.8, 26, 25, 24.5, 24, 23.8, 23.5, 23.2, 23];
+  new Chart(ctx24, {
+    type: 'line',
+    data: { labels: labels24, datasets: [{ data: data24, borderColor: '#388bfd', fill: { target: 'origin', above: 'rgba(56,139,253,0.08)' } }] },
+    options: { ...chartDefaults, scales: { ...chartDefaults.scales, y: { ...chartDefaults.scales.y, min: 18, max: 30 } } }
+  });
+
+  // Energy bar chart
+  const ctxE = document.getElementById('chart-energy').getContext('2d');
+  new Chart(ctxE, {
+    type: 'bar',
+    data: {
+      labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+      datasets: [
+        { label: 'AC', data: [2.1, 1.9, 2.3, 1.7, 1.8, 2.4, 2.1], backgroundColor: 'rgba(56,139,253,0.6)', borderRadius: 4 },
+        { label: 'Fan', data: [0.9, 0.8, 1.0, 0.7, 0.9, 1.1, 0.9], backgroundColor: 'rgba(63,185,80,0.6)', borderRadius: 4 }
+      ]
+    },
+    options: {
+      ...chartDefaults,
+      plugins: { legend: { display: true, labels: { color: '#8b949e', font: { size: 11 }, boxWidth: 12 } } }
+    }
+  });
+
+  // Loop decision doughnut
+  const ctxL = document.getElementById('chart-loop').getContext('2d');
+  new Chart(ctxL, {
+    type: 'doughnut',
+    data: {
+      labels: ['Local loop', 'Cloud optimized', 'Manual override'],
+      datasets: [{
+        data: [64, 30, 6],
+        backgroundColor: ['rgba(56,139,253,0.7)', 'rgba(210,153,34,0.7)', 'rgba(248,81,73,0.7)'],
+        borderColor: ['#388bfd', '#d29922', '#f85149'],
+        borderWidth: 1
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: true, position: 'bottom', labels: { color: '#8b949e', font: { size: 11 }, boxWidth: 12, padding: 12 } }
+      }
+    }
+  });
+}
+
+// ── LIVE UPDATE ─────────────────────────────────────────
+setInterval(() => {
+  const now = new Date().toLocaleTimeString('en', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+  const newTemp = +(tempData[tempData.length - 1] + (Math.random() - 0.48) * 0.3).toFixed(1);
+  const newHum  = +(humData[humData.length - 1] + (Math.random() - 0.5) * 0.8).toFixed(0);
+  const clampHum = Math.max(30, Math.min(90, newHum));
+
+  tempData = [...tempData.slice(1), newTemp];
+  humData  = [...humData.slice(1), clampHum];
+
+  tempChart.data.labels = [...tempChart.data.labels.slice(1), now];
+  tempChart.data.datasets[0].data = [...tempData];
+  tempChart.update('none');
+
+  humChart.data.labels = [...humChart.data.labels.slice(1), now];
+  humChart.data.datasets[0].data = [...humData];
+  humChart.update('none');
+
+  document.getElementById('m-temp').textContent = newTemp.toFixed(1);
+  document.getElementById('m-hum').textContent  = clampHum;
+  document.getElementById('m-energy').textContent = (3.0 + Math.random() * 0.5).toFixed(1);
+
+  const acOn = newTemp > 23;
+  document.getElementById('m-temp-status').style.color = acOn ? 'var(--amber)' : 'var(--green)';
+  document.getElementById('m-temp-status').textContent = acOn ? 'Above threshold — AC ON' : 'Within range — AC idle';
+
+  // Add log entry every 10s
+  if (Math.random() < 0.2) {
+    addLogEntry(newTemp, clampHum, acOn);
+  }
+}, 2000);
+
+// Uptime counter
+let uptimeSec = 252;
+setInterval(() => {
+  uptimeSec++;
+  const h = String(Math.floor(uptimeSec / 3600)).padStart(2, '0');
+  const m = String(Math.floor((uptimeSec % 3600) / 60)).padStart(2, '0');
+  const s = String(uptimeSec % 60).padStart(2, '0');
+  document.getElementById('uptime').textContent = `${h}:${m}:${s}`;
+}, 1000);
+
+// ── LOG ────────────────────────────────────────────────
+function addLogEntry(temp, hum, acOn) {
+  const log = document.getElementById('event-log');
+  const t = new Date().toLocaleTimeString('en', { hour12: false });
+  const msgs = [
+    { tag: 'lt-local', msg: `DHT22: ${temp}°C / ${hum}% RH — local loop evaluated` },
+    { tag: 'lt-cloud', msg: `Cloud optimizer: setpoint adjusted to ${(22 + Math.random()).toFixed(0)}°C` },
+    { tag: 'lt-local', msg: `Relay AC: ${acOn ? 'ON' : 'OFF'} — threshold check passed` },
+    { tag: 'lt-ok',    msg: `MQTT publish to hvac/sensors — ACK received` },
+  ];
+  const m = msgs[Math.floor(Math.random() * msgs.length)];
+  const entry = document.createElement('div');
+  entry.className = 'log-entry';
+  entry.innerHTML = `<span class="log-time">${t}</span><span class="log-tag ${m.tag}">${m.tag === 'lt-local' ? 'LOCAL' : m.tag === 'lt-cloud' ? 'CLOUD' : m.tag === 'lt-ok' ? 'OK' : 'ALERT'}</span><span class="log-msg">${m.msg}</span>`;
+  log.insertBefore(entry, log.firstChild);
+  while (log.children.length > 20) log.removeChild(log.lastChild);
+}
+
+// ── CONTROLS ──────────────────────────────────────────
+function toggle(btn) {
+  btn.classList.toggle('on');
+  btn.classList.toggle('off');
+}
+
+function applySettings() {
+  const log = document.getElementById('mqtt-log');
+  const sp = document.querySelector('#sec-controls input[type=range]').value;
+  const fan = document.querySelectorAll('#sec-controls input[type=range]')[1].value;
+  const t = new Date().toLocaleTimeString('en', { hour12: false });
+  const entry = document.createElement('div');
+  entry.className = 'mq-pub';
+  entry.textContent = `[${t}] → PUB hvac/cmd | {"setpoint":${sp},"fan":${fan}} — ACK OK`;
+  log.insertBefore(entry, log.firstChild);
+}
+
+function resetDefaults() {
+  document.querySelectorAll('#sec-controls input[type=range]')[0].value = 22;
+  document.getElementById('lbl-temp').textContent = '22°C';
+  document.querySelectorAll('#sec-controls input[type=range]')[1].value = 60;
+  document.getElementById('lbl-fan').textContent = '60%';
+  document.querySelectorAll('#sec-controls input[type=range]')[2].value = 55;
+  document.getElementById('lbl-hum').textContent = '55%';
+  document.querySelectorAll('#sec-controls input[type=range]')[3].value = 1;
+  document.getElementById('lbl-hys').textContent = '1.0°C';
+}
+
+function publishMqtt() {
+  const topic = document.getElementById('mqtt-topic').value;
+  const payload = document.getElementById('mqtt-payload').value || '{}';
+  const log = document.getElementById('mqtt-log');
+  const t = new Date().toLocaleTimeString('en', { hour12: false });
+  const entry = document.createElement('div');
+  entry.className = 'mq-pub';
+  entry.textContent = `[${t}] → PUB ${topic} | ${payload} — ACK OK`;
+  log.insertBefore(entry, log.firstChild);
+  document.getElementById('mqtt-payload').value = '';
+}
+
+// ── SCHEDULE GRID ──────────────────────────────────────
+function initSchedule() {
+  const grid = document.getElementById('schedule-grid');
+  if (grid.children.length > 0) return;
+  const days = ['', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  const hours = ['00:00','03:00','06:00','09:00','12:00','15:00','18:00','21:00'];
+
+  const cellStyle = 'padding:8px 6px;font-size:11px;text-align:center;font-family:var(--mono);';
+  const bgBase = 'background:var(--bg2);';
+  const bgAlt = 'background:var(--bg3);';
+
+  // Header row
+  days.forEach((d, di) => {
+    const c = document.createElement('div');
+    c.style.cssText = cellStyle + bgAlt + 'font-weight:600;color:var(--text3);font-size:10px;';
+    c.textContent = d;
+    grid.appendChild(c);
+  });
+
+  // Data rows
+  const schedule = [
+    [26,26,26,26,26,26,26],
+    [25,25,25,25,25,25,25],
+    [22,22,22,22,22,22,22],
+    [22,22,22,22,22,22,22],
+    [22,22,22,22,22,22,22],
+    [22,22,22,22,22,22,22],
+    [23,23,23,23,23,23,23],
+    [24,24,24,24,24,24,24],
+  ];
+
+  hours.forEach((h, hi) => {
+    const lbl = document.createElement('div');
+    lbl.style.cssText = cellStyle + bgAlt + 'color:var(--text3);font-size:10px;';
+    lbl.textContent = h;
+    grid.appendChild(lbl);
+
+    schedule[hi].forEach(sp => {
+      const c = document.createElement('div');
+      const isCool = sp <= 22;
+      const isOff = hi < 2;
+      let bg = isOff ? 'background:var(--bg4);color:var(--text3);' :
+               isCool ? 'background:var(--blue-dim);color:var(--blue);' :
+               'background:var(--amber-dim);color:var(--amber);';
+      c.style.cssText = cellStyle + bg + 'cursor:pointer;transition:opacity 0.1s;border-radius:4px;margin:2px;';
+      c.textContent = isOff ? 'OFF' : sp + '°';
+      c.title = `Setpoint: ${sp}°C`;
+      grid.appendChild(c);
+    });
+  });
+}
+
+// ── CODE COPY ─────────────────────────────────────────
+function copyCode(id) {
+  const el = document.getElementById(id);
+  const text = el.innerText;
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = event.target;
+    btn.textContent = 'Copied!';
+    btn.style.color = 'var(--green)';
+    setTimeout(() => { btn.textContent = 'Copy'; btn.style.color = ''; }, 2000);
+  });
+}
+</script>
+</body>
+</html>
